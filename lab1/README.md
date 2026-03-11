@@ -67,3 +67,11 @@ https://marketplace.visualstudio.com/items?itemName=vimpelcom.c4-varp
 - Создание бронирования
 - Получение бронирований пользователя
 - Отмена бронирования
+# Диаграммы
+<img width="638" height="862" alt="image" src="https://github.com/user-attachments/assets/dff7d1a9-3a99-4e8b-bf22-0b185e8ff072" />
+<img width="907" height="889" alt="image" src="https://github.com/user-attachments/assets/8c56fb00-5df7-4f2b-b9ec-4c56947ae99e" />
+<img width="1111" height="273" alt="image" src="https://github.com/user-attachments/assets/9046ee3d-a1c2-4ee0-8f31-374524346e1f" />
+<img width="927" height="885" alt="image" src="https://github.com/user-attachments/assets/c12bbcff-4f46-45f2-8657-6eed224fd665" />
+
+
+
