@@ -1,0 +1,40 @@
+{
+  "name": "Hotel Booking Service",
+  "image": "ubuntu:22.04",
+
+  "runArgs": ["--platform=linux/arm64"],
+
+  "containerEnv": {
+    "DEBIAN_FRONTEND": "noninteractive"
+  },
+
+  "onCreateCommand": "apt-get update && apt-get install -y git cmake ninja-build clang clangd python3 python3-pip curl libboost-all-dev libc-ares-dev libev-dev libssl-dev libcurl4-openssl-dev ccache && pip3 install pytest pytest-asyncio aiohttp PyJWT",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "llvm-vs-code-extensions.vscode-clangd",
+        "ms-vscode.cmake-tools",
+        "ms-python.python",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "cmake.sourceDirectory": "${workspaceFolder}/services/auth-service",
+        "cmake.buildDirectory": "${workspaceFolder}/services/auth-service/build",
+        "cmake.generator": "Ninja",
+        "cmake.configureArgs": ["-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
+        "clangd.arguments": [
+          "--compile-commands-dir=${workspaceFolder}/services/auth-service/build",
+          "--background-index",
+          "--clang-tidy"
+        ],
+        "editor.formatOnSave": true,
+        "[cpp]": {
+          "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+        }
+      }
+    }
+  },
+
+  "postCreateCommand": "echo 'Dev container ready. Use docker compose up --build from the terminal to start all services.'"
+}

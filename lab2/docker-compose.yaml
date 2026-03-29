@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  auth-service:
+    build:
+      context: ./services
+      dockerfile: auth-service/Dockerfile.native
+    platform: linux/arm64
+    container_name: auth-service
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  inventory-service:
+    build:
+      context: ./services
+      dockerfile: inventory-service/Dockerfile.native
+    platform: linux/arm64
+    container_name: inventory-service
+    restart: unless-stopped
+    depends_on:
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  booking-service:
+    build:
+      context: ./services
+      dockerfile: booking-service/Dockerfile.native
+    platform: linux/arm64
+    container_name: booking-service
+    restart: unless-stopped
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    container_name: swagger-ui
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./swagger/openapi.yaml:/tmp/openapi.yaml:ro
+    environment:
+      SWAGGER_JSON: /tmp/openapi.yaml
+    restart: unless-stopped
+
+  api-gateway:
+    image: nginx:alpine
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+      booking-service:
+        condition: service_healthy
+    restart: unless-stopped
