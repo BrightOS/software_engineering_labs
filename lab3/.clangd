@@ -1,0 +1,14 @@
+Diagnostics:
+  Suppress:
+    - pp_file_not_found
+    - undeclared_var_use
+    - no_member_template
+    - no_member
+    - typename_nested_not_found
+    - expected_class_name
+    - constexpr_var_requires_const_init
+    - init_conversion_failed
+    - fatal_too_many_errors
+    - template_kw_missing
+    - unused-includes
+    - warn_no_constructor_for_refconst

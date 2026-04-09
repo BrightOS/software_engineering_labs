@@ -1,0 +1,106 @@
+FROM --platform=linux/arm64 ubuntu:22.04 AS builder
+
+ARG SERVICE_NAME
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential ccache cmake ninja-build git \
+    python3-dev python3-venv python3-yaml python3-jinja2 python3-voluptuous \
+    libboost-context1.74-dev \
+    libboost-coroutine1.74-dev \
+    libboost-filesystem1.74-dev \
+    libboost-iostreams1.74-dev \
+    libboost-locale1.74-dev \
+    libboost-program-options1.74-dev \
+    libboost-stacktrace1.74-dev \
+    libboost1.74-dev \
+    libbenchmark-dev \
+    libbz2-dev \
+    libc-ares-dev \
+    libcctz-dev \
+    libcrypto++-dev \
+    libcurl4-openssl-dev \
+    libdouble-conversion-dev \
+    libev-dev \
+    libfmt-dev \
+    libgmock-dev \
+    libgtest-dev \
+    libicu-dev \
+    libidn11-dev \
+    libjemalloc-dev \
+    libkrb5-dev \
+    libldap2-dev \
+    liblz4-dev \
+    libnghttp2-dev \
+    libpq-dev \
+    libsasl2-dev \
+    libssl-dev \
+    libyaml-cpp-dev \
+    libzstd-dev \
+    postgresql-server-dev-14 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY shared/ shared/
+COPY ${SERVICE_NAME}/ .
+
+RUN cmake -B /build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DUSERVER_FEATURE_POSTGRESQL=ON \
+        -DUSERVER_FEATURE_REDIS=OFF \
+        -DUSERVER_FEATURE_MONGODB=OFF \
+        -DUSERVER_FEATURE_GRPC=OFF \
+        -DUSERVER_FEATURE_CLICKHOUSE=OFF \
+        -DUSERVER_FEATURE_KAFKA=OFF \
+        -DUSERVER_FEATURE_RABBITMQ=OFF \
+        -DUSERVER_FEATURE_MYSQL=OFF \
+        -DUSERVER_FEATURE_ROCKS=OFF \
+        -DUSERVER_FEATURE_UTEST=OFF \
+        . && \
+    cmake --build /build --parallel "$(nproc)"
+
+FROM --platform=linux/arm64 ubuntu:22.04
+
+ARG SERVICE_NAME
+ARG SERVICE_PORT=8080
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libboost-context1.74.0 \
+    libboost-coroutine1.74.0 \
+    libboost-filesystem1.74.0 \
+    libboost-iostreams1.74.0 \
+    libboost-locale1.74.0 \
+    libboost-program-options1.74.0 \
+    libboost-stacktrace1.74.0 \
+    libc-ares2 \
+    libcctz2 \
+    libcrypto++8 \
+    curl \
+    libcurl4 \
+    libdouble-conversion3 \
+    libev4 \
+    libfmt8 \
+    libicu70 \
+    libjemalloc2 \
+    liblz4-1 \
+    libnghttp2-14 \
+    libpq5 \
+    libre2-9 \
+    libssl3 \
+    libyaml-cpp0.7 \
+    libzstd1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /build/${SERVICE_NAME} /usr/local/bin/${SERVICE_NAME}
+COPY ${SERVICE_NAME}/configs/ /app/configs/
+
+EXPOSE ${SERVICE_PORT}
+
+# CMD нельзя параметризовать через ARG напрямую, поэтому сохраняем имя в ENV
+ENV SVC_NAME=${SERVICE_NAME}
+CMD sh -c "/usr/local/bin/${SVC_NAME} -c /app/configs/static_config.yaml"

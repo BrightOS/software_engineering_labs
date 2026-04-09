@@ -1,0 +1,63 @@
+components_manager:
+    task_processors:
+        main-task-processor:
+            worker_threads: 4
+        fs-task-processor:
+            worker_threads: 2
+    default_task_processor: main-task-processor
+
+    components:
+        server:
+            listener:
+                port: 8083
+                task_processor: main-task-processor
+
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: info
+                    overflow_behavior: discard
+
+        dynamic-config:
+            defaults:
+                HTTP_CLIENT_CONNECTION_POOL_SIZE: 1000
+                HTTP_CLIENT_METRICS_LOAD_ENABLED: false
+
+        dns-client:
+            fs-task-processor: fs-task-processor
+
+        http-client:
+            fs-task-processor: fs-task-processor
+            thread-name-prefix: http-client
+            pool-statistics-disable: false
+            destination-metrics-auto-max-size: 100
+            user-agent: booking-service
+
+        booking-database:
+            dbconnection#env: BOOKING_DB_URL
+            blocking_task_processor: fs-task-processor
+            dns_resolver: async
+            sync-start: true
+
+        handler-ping:
+            path: /ping
+            method: GET
+            task_processor: main-task-processor
+            throttling_enabled: false
+            url_trailing_slash: strict-match
+
+        testsuite-support: {}
+
+        storage-component: {}
+
+        handler-bookings:
+            path: /api/bookings
+            method: GET,POST
+            task_processor: main-task-processor
+
+        handler-bookings-cancel:
+            path: /api/bookings/{id}
+            method: DELETE
+            task_processor: main-task-processor
