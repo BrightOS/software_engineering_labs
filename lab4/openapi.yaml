@@ -1,0 +1,578 @@
+openapi: "3.0.3"
+info:
+  title: Hotel Booking Service API
+  description: |
+    REST API для системы бронирования отелей (Вариант 13).
+    Реализованы операции с пользователями, отелями и бронированиями.
+    Аутентификация выполняется через Bearer-токен, полученный при логине.
+  version: "1.0.0"
+  contact:
+    name: Hotel Booking Service
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: auth
+    description: Регистрация и аутентификация пользователей
+  - name: users
+    description: Операции с пользователями
+  - name: hotels
+    description: Операции с отелями
+  - name: bookings
+    description: Операции с бронированиями
+
+paths:
+  /api/auth/register:
+    post:
+      tags: [auth]
+      summary: Создание нового пользователя
+      description: Регистрирует нового пользователя в системе.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              login: "john_doe"
+              password: "secret123"
+              first_name: "John"
+              last_name: "Doe"
+              email: "john@example.com"
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Логин уже занят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Login already taken"
+
+  /api/auth/login:
+    post:
+      tags: [auth]
+      summary: Логин пользователя
+      description: Аутентифицирует пользователя и возвращает access- и refresh-токены.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              login: "john_doe"
+              password: "secret123"
+      responses:
+        '200':
+          description: Успешная аутентификация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/refresh:
+    post:
+      tags: [auth]
+      summary: Обновление access-токена
+      description: |
+        Принимает refresh-токен и возвращает новую пару access/refresh токенов.
+        Старый refresh-токен инвалидируется (ротация токенов).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            example:
+              refresh_token: "40000000-0000-0000-0000-000000000001"
+      responses:
+        '200':
+          description: Токены обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/logout:
+    post:
+      tags: [auth]
+      summary: Выход пользователя
+      description: Инвалидирует refresh-токен. После этого он не может быть использован для обновления.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            example:
+              refresh_token: "40000000-0000-0000-0000-000000000001"
+      responses:
+        '200':
+          description: Выход выполнен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Refresh-токен не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/users/by-login/{login}:
+    get:
+      tags: [users]
+      summary: Поиск пользователя по логину
+      parameters:
+        - name: login
+          in: path
+          required: true
+          schema:
+            type: string
+          example: john_doe
+      responses:
+        '200':
+          description: Пользователь найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/users/search:
+    get:
+      tags: [users]
+      summary: Поиск пользователей по маске имени и фамилии
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Подстрока для поиска в имени и фамилии (регистронезависимо)
+          example: "John"
+      responses:
+        '200':
+          description: Список пользователей, соответствующих маске
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/hotels:
+    get:
+      tags: [hotels]
+      summary: Получение списка отелей / поиск по городу
+      parameters:
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Фильтр по городу (точное совпадение)
+          example: "Moscow"
+      responses:
+        '200':
+          description: Список отелей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Hotel'
+
+    post:
+      tags: [hotels]
+      summary: Создание отеля
+      description: Требует аутентификации (Bearer-токен).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HotelRequest'
+            example:
+              name: "Grand Hotel"
+              city: "Moscow"
+              address: "Tverskaya St., 1"
+              description: "Luxury hotel in city center"
+              stars: 5
+      responses:
+        '201':
+          description: Отель создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hotel'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/bookings:
+    get:
+      tags: [bookings]
+      summary: Получение бронирований пользователя
+      description: |
+        Требует аутентификации. Возвращает бронирования текущего пользователя.
+        Параметр userId позволяет получить бронирования другого пользователя.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ID пользователя (если не указан — используется ID из токена)
+      responses:
+        '200':
+          description: Список бронирований
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [bookings]
+      summary: Создание бронирования
+      description: Требует аутентификации. Создаёт бронь для текущего пользователя.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingRequest'
+            example:
+              hotel_id: "20000000-0000-0000-0000-000000000001"
+              check_in: "2025-06-01"
+              check_out: "2025-06-07"
+      responses:
+        '201':
+          description: Бронирование создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Отель не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/bookings/{id}:
+    delete:
+      tags: [bookings]
+      summary: Отмена бронирования
+      description: Требует аутентификации. Устанавливает статус бронирования CANCELLED.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "20000000-0000-0000-0000-000000000001"
+      responses:
+        '200':
+          description: Бронирование отменено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Booking cancelled successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Нет прав на отмену этого бронирования
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Access denied"
+        '404':
+          description: Бронирование не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Бронирование уже отменено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Booking already cancelled"
+
+  /ping:
+    get:
+      tags: []
+      summary: Health check
+      responses:
+        '200':
+          description: Service is alive
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Токен, полученный при POST /api/auth/login.
+        Передаётся в заголовке: Authorization: Bearer <token>
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [login, password, first_name, last_name]
+      properties:
+        login:
+          type: string
+          example: john_doe
+        password:
+          type: string
+          format: password
+          example: secret123
+        first_name:
+          type: string
+          example: John
+        last_name:
+          type: string
+          example: Doe
+        email:
+          type: string
+          format: email
+          example: john@example.com
+
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          example: john_doe
+        password:
+          type: string
+          format: password
+          example: secret123
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Signed HS256 JWT access token. Valid for 24 hours.
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          format: uuid
+          description: Opaque refresh token. Use with POST /api/auth/refresh to get a new access token.
+          example: "40000000-0000-0000-0000-000000000001"
+        user_id:
+          type: string
+          format: uuid
+          example: "10000000-0000-0000-0000-000000000001"
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          format: uuid
+          example: "40000000-0000-0000-0000-000000000001"
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "10000000-0000-0000-0000-000000000001"
+        login:
+          type: string
+          example: john_doe
+        first_name:
+          type: string
+          example: John
+        last_name:
+          type: string
+          example: Doe
+        email:
+          type: string
+          format: email
+          example: john@example.com
+
+    HotelRequest:
+      type: object
+      required: [name, city, address]
+      properties:
+        name:
+          type: string
+          example: "Grand Hotel"
+        city:
+          type: string
+          example: "Moscow"
+        address:
+          type: string
+          example: "Tverskaya St., 1"
+        description:
+          type: string
+          example: "Luxury hotel in city center"
+        stars:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+
+    Hotel:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "20000000-0000-0000-0000-000000000001"
+        name:
+          type: string
+          example: "Grand Hotel"
+        city:
+          type: string
+          example: "Moscow"
+        address:
+          type: string
+          example: "Tverskaya St., 1"
+        description:
+          type: string
+          example: "Luxury hotel in city center"
+        stars:
+          type: integer
+          example: 5
+
+    BookingRequest:
+      type: object
+      required: [hotel_id, check_in, check_out]
+      properties:
+        hotel_id:
+          type: string
+          format: uuid
+          example: "20000000-0000-0000-0000-000000000001"
+        check_in:
+          type: string
+          format: date
+          example: "2025-06-01"
+        check_out:
+          type: string
+          format: date
+          example: "2025-06-07"
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "30000000-0000-0000-0000-000000000001"
+        user_id:
+          type: string
+          format: uuid
+          example: "10000000-0000-0000-0000-000000000001"
+        hotel_id:
+          type: string
+          format: uuid
+          example: "20000000-0000-0000-0000-000000000001"
+        check_in:
+          type: string
+          format: date
+          example: "2025-06-01"
+        check_out:
+          type: string
+          format: date
+          example: "2025-06-07"
+        status:
+          type: string
+          enum: [CONFIRMED, CANCELLED]
+          example: CONFIRMED
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Not found"
+
+  responses:
+    BadRequest:
+      description: Некорректные входные данные
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "login, password, first_name and last_name are required"
+    Unauthorized:
+      description: Требуется аутентификация или неверные учётные данные
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Authentication required"
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Not found"
