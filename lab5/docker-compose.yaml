@@ -1,0 +1,194 @@
+services:
+  auth-db:
+    image: postgres:15-alpine
+    platform: linux/arm64
+    container_name: auth-db
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+      - ./db/auth-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  inventory-db:
+    image: postgres:15-alpine
+    platform: linux/arm64
+    container_name: inventory-db
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - inventory-db-data:/var/lib/postgresql/data
+      - ./db/inventory-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d inventory_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  booking-db:
+    image: mongo:7-jammy
+    platform: linux/arm64
+    container_name: booking-db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: booking_admin
+      MONGO_INITDB_ROOT_PASSWORD: booking_password
+      MONGO_INITDB_DATABASE: booking_db
+    volumes:
+      - booking-db-data:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  auth-service:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: auth-service
+        SERVICE_PORT: 8081
+    container_name: auth-service
+    restart: unless-stopped
+    environment:
+      AUTH_DB_URL: "postgresql://postgres:postgres@auth-db:5432/auth_db"
+    ports:
+      - "8091:8091"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  inventory-service:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: inventory-service
+        SERVICE_PORT: 8082
+    container_name: inventory-service
+    restart: unless-stopped
+    environment:
+      INVENTORY_DB_URL: "postgresql://postgres:postgres@inventory-db:5432/inventory_db"
+    ports:
+      - "8092:8092"
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  booking-service:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE_NAME: booking-service
+        SERVICE_PORT: 8083
+    container_name: booking-service
+    restart: unless-stopped
+    environment:
+      BOOKING_MONGO_URL: "mongodb://booking_admin:booking_password@booking-db:27017/booking_db?authSource=admin"
+    ports:
+      - "8093:8093"
+    depends_on:
+      booking-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    container_name: swagger-ui
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./openapi.yaml:/tmp/openapi.yaml:ro
+    environment:
+      SWAGGER_JSON: /tmp/openapi.yaml
+    restart: unless-stopped
+
+  api-gateway:
+    image: nginx:alpine
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+      booking-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  auth-db-data:
+  inventory-db-data:
+  booking-db-data:
+  prometheus-data:
+  grafana-data:
