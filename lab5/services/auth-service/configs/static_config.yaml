@@ -1,0 +1,88 @@
+components_manager:
+    task_processors:
+        main-task-processor:
+            worker_threads: 4
+        fs-task-processor:
+            worker_threads: 2
+    default_task_processor: main-task-processor
+
+    components:
+        server:
+            listener:
+                port: 8081
+                task_processor: main-task-processor
+            listener-monitor:
+                port: 8091
+                task_processor: main-task-processor
+
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: info
+                    overflow_behavior: discard
+
+        dynamic-config:
+            defaults:
+                HTTP_CLIENT_CONNECTION_POOL_SIZE: 1000
+                HTTP_CLIENT_METRICS_LOAD_ENABLED: false
+
+        dns-client:
+            fs-task-processor: fs-task-processor
+
+        auth-database:
+            dbconnection#env: AUTH_DB_URL
+            blocking_task_processor: fs-task-processor
+            dns_resolver: async
+            sync-start: true
+
+        handler-ping:
+            path: /ping
+            method: GET
+            task_processor: main-task-processor
+            throttling_enabled: false
+            url_trailing_slash: strict-match
+
+        testsuite-support: {}
+
+        statistics-storage: {}
+
+        storage-component: {}
+
+        handler-server-monitor:
+            path: /service/monitor
+            method: GET
+            task_processor: main-task-processor
+
+        handler-auth-register:
+            path: /api/auth/register
+            method: POST
+            task_processor: main-task-processor
+
+        handler-auth-login:
+            path: /api/auth/login
+            method: POST
+            task_processor: main-task-processor
+            jwt-secret: "hotel-booking-secret-key-lab2"
+
+        handler-auth-refresh:
+            path: /api/auth/refresh
+            method: POST
+            task_processor: main-task-processor
+            jwt-secret: "hotel-booking-secret-key-lab2"
+
+        handler-auth-logout:
+            path: /api/auth/logout
+            method: POST
+            task_processor: main-task-processor
+
+        handler-users-by-login:
+            path: /api/users/by-login/{login}
+            method: GET
+            task_processor: main-task-processor
+
+        handler-users-search:
+            path: /api/users/search
+            method: GET
+            task_processor: main-task-processor
