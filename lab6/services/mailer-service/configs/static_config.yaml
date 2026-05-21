@@ -1,0 +1,60 @@
+components_manager:
+    task_processors:
+        main-task-processor:
+            worker_threads: 2
+        fs-task-processor:
+            worker_threads: 2
+    default_task_processor: main-task-processor
+
+    components:
+        server:
+            listener:
+                port: 8084
+                task_processor: main-task-processor
+            listener-monitor:
+                port: 8094
+                task_processor: main-task-processor
+
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: info
+                    overflow_behavior: discard
+
+        dynamic-config:
+            defaults:
+                HTTP_CLIENT_CONNECTION_POOL_SIZE: 100
+
+        dns-client:
+            fs-task-processor: fs-task-processor
+
+        secdist: {}
+
+        default-secdist-provider:
+            missing-ok: true
+            environment-secrets-key: SECDIST_CONFIG
+
+        booking-rabbitmq:
+            secdist_alias: booking-rabbitmq
+            min_pool_size: 5
+            max_pool_size: 10
+            max_in_flight_requests: 5
+            use_secure_connection: false
+
+        mailer-consumer:
+            rabbit_name: booking-rabbitmq
+            queue: mailer_queue
+            prefetch_count: 5
+
+        testsuite-support: {}
+
+        statistics-storage: {}
+
+        handler-ping:
+            path: /ping
+            method: GET
+            task_processor: main-task-processor
+            throttling_enabled: false
+            url_trailing_slash: strict-match

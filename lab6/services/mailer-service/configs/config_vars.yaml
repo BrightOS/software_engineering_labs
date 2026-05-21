@@ -1,0 +1,3 @@
+worker-threads: 2
+worker-fs-threads: 2
+logger-level: info
