@@ -1,0 +1,66 @@
+components_manager:
+    task_processors:
+        main-task-processor:
+            worker_threads: 4
+        fs-task-processor:
+            worker_threads: 2
+    default_task_processor: main-task-processor
+
+    components:
+        server:
+            listener:
+                port: 8082
+                task_processor: main-task-processor
+            listener-monitor:
+                port: 8092
+                task_processor: main-task-processor
+
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: info
+                    overflow_behavior: discard
+
+        dynamic-config:
+            defaults:
+                HTTP_CLIENT_CONNECTION_POOL_SIZE: 1000
+                HTTP_CLIENT_METRICS_LOAD_ENABLED: false
+
+        dns-client:
+            fs-task-processor: fs-task-processor
+
+        inventory-database:
+            dbconnection#env: INVENTORY_DB_URL
+            blocking_task_processor: fs-task-processor
+            dns_resolver: async
+            sync-start: true
+
+        handler-ping:
+            path: /ping
+            method: GET
+            task_processor: main-task-processor
+            throttling_enabled: false
+            url_trailing_slash: strict-match
+
+        testsuite-support: {}
+
+        statistics-storage: {}
+
+        storage-component: {}
+
+        handler-server-monitor:
+            path: /service/monitor
+            method: GET
+            task_processor: main-task-processor
+
+        handler-hotels:
+            path: /api/hotels
+            method: GET,POST
+            task_processor: main-task-processor
+
+        handler-internal-hotels:
+            path: /api/internal/hotels/{id}
+            method: GET
+            task_processor: main-task-processor
